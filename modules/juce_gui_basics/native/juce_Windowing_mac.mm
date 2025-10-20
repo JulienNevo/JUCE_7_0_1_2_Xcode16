@@ -518,6 +518,8 @@ Image detail::WindowingHelpers::createIconForFile (const File& file)
 
 static Image createNSWindowSnapshot (NSWindow* nsWindow)
 {
+    return {};
+    /*
     JUCE_AUTORELEASEPOOL
     {
         // CGWindowListCreateImage is replaced by functions in the ScreenCaptureKit framework, but
@@ -552,10 +554,12 @@ static Image createNSWindowSnapshot (NSWindow* nsWindow)
 
         return result;
     }
+    */
 }
 
 Image createSnapshotOfNativeWindow (void* nativeWindowHandle)
 {
+    /*
     if (id windowOrView = (id) nativeWindowHandle)
     {
         if ([windowOrView isKindOfClass: [NSWindow class]])
@@ -564,6 +568,7 @@ Image createSnapshotOfNativeWindow (void* nativeWindowHandle)
         if ([windowOrView isKindOfClass: [NSView class]])
             return createNSWindowSnapshot ([(NSView*) windowOrView window]);
     }
+    */
 
     return {};
 }
