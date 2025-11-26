@@ -402,23 +402,57 @@ bool MidiFile::readFrom (InputStream& sourceStream,
     return successful;
 }
 
+// Applied patch, comparison failed on Mac.
+// https://github.com/juce-framework/JUCE/commit/281c56f2f9bca510f4ae42fa65030769a68e1929
+template <typename It>
+static void reorderNoteOnsAfterNoteOffs (const It begin, const It end)
+{
+    for (auto it = begin; it != end;)
+    {
+        const auto firstNoteOn = std::find_if (it, end, [] (const auto& x)
+        {
+            return x->message.isNoteOn();
+        });
+
+        if (firstNoteOn == end)
+            return;
+
+        const auto channel = (*firstNoteOn)->message.getChannel();
+        const auto noteNumber = (*firstNoteOn)->message.getNoteNumber();
+        const auto rEnd = std::make_reverse_iterator (firstNoteOn);
+        const auto lastNoteOff = std::find_if (std::make_reverse_iterator (end), rEnd, [&] (const auto& x)
+        {
+            return x->message.getChannel() == channel
+                   && x->message.getNoteNumber() == noteNumber
+                   && x->message.isNoteOff();
+        });
+
+        if (lastNoteOff == rEnd)
+            return;
+
+        std::iter_swap (firstNoteOn, std::prev (lastNoteOff.base()));
+
+        it = std::next (firstNoteOn);
+    }
+}
+
 void MidiFile::readNextTrack (const uint8* data, int size, bool createMatchingNoteOffs)
 {
     auto sequence = MidiFileHelpers::readTrack (data, size);
+    sequence.sort();
 
-    // sort so that we put all the note-offs before note-ons that have the same time
-    std::stable_sort (sequence.list.begin(), sequence.list.end(),
-                      [] (const MidiMessageSequence::MidiEventHolder* a,
-                          const MidiMessageSequence::MidiEventHolder* b)
+    for (auto it = sequence.begin(); it != sequence.end();)
     {
-        auto t1 = a->message.getTimeStamp();
-        auto t2 = b->message.getTimeStamp();
+        const auto stamp = (*it)->message.getTimeStamp();
+        const auto nextTime = std::find_if (it, sequence.end(), [stamp] (const auto& x)
+        {
+            return ! exactlyEqual (x->message.getTimeStamp(), stamp);
+        });
 
-        if (t1 < t2)  return true;
-        if (t2 < t1)  return false;
+        reorderNoteOnsAfterNoteOffs (it, nextTime);
 
-        return a->message.isNoteOff() && b->message.isNoteOn();
-    });
+        it = nextTime;
+    }
 
     if (createMatchingNoteOffs)
         sequence.updateMatchedPairs();
